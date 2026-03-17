@@ -1,8 +1,9 @@
-#define AOUT_PIN 27
+#define AOUT_PIN 36
 //Fins Spider Plant Big
-#define Fins_Dry_Spider_plant 3900 //start at 3900
-#define Fins_Wet_Spider_plant 3700 //start at 3700
-#define Device_Name "Fins_Room_Soil_moisture_Sensor"
+#define Fins_Dry_Spider_plant 3200 //start at 3900
+#define Fins_Wet_Spider_plant 1000 //start at 3700
+#define Plant_Name "large_spider_plant"
+#define Plant_Location "fins_room"
 
 #include <config.h> //file containing all config info
 
@@ -10,9 +11,8 @@
 #include <MQTTClient.h>
 #include <ArduinoJson.h>
 
-
-const char PUB_TOPIC[] = "Fins_Room_Soil_moisture_Sensor_Percent/loopback";
-const char SUB_TOPIC[] = "Fins_Room_Soil_moisture_Sensor_Percent/loopback";
+#define CONCAT_TOPIC(prefix,mid, suffix) prefix "/" mid "/" suffix
+const char PUB_TOPIC[] = CONCAT_TOPIC(Plant_Location,Plant_Name, "soil_moisture_sensor");
 
 WiFiClient network;
 MQTTClient mqtt =MQTTClient(256);
@@ -35,16 +35,22 @@ void setup() {
   }
   Serial.println("Connected to Wifi");
   connectToMQTT();
+  Serial.print("MQTT connected: ");
+  Serial.println(mqtt.connected() ? "Yes" : "No");
 }
 
 void loop() {
+  mqtt.loop();
+    if (!mqtt.connected()) {
+    connectToMQTT();
+  }
   int total=0;
   int loops=100;
 
   for(int x=0;x<loops;x++){
     int value =analogRead(AOUT_PIN);
     total=total+value;
-    delay(500);
+    delay(20);
   }
   int average=total/loops;
   if (average>Fins_Dry_Spider_plant){
@@ -62,7 +68,7 @@ void loop() {
   Serial.println();
   Serial.print("the Average is: ");
   Serial.println(average);
-  sendToMQTT(average);
+  sendToMQTT(percentage);
 
 }
 
@@ -79,14 +85,7 @@ void connectToMQTT(){
     Serial.println("ESP32 - MQTT broker Timeout!");
     return;
   }
-    // Subscribe to a topic, the incoming messages are processed by messageHandler() function
-  if (mqtt.subscribe(SUB_TOPIC))
-    Serial.print("ESP32 - Subscribed to the topic: ");
-  else
-    Serial.print("ESP32 - Failed to subscribe to the topic: ");
-
-  Serial.println(SUB_TOPIC);
-  Serial.println("ESP32  - MQTT broker Connected!");
+ Serial.println("ESP32  - MQTT broker Connected!");
 }
 
 void sendToMQTT(int data) {
@@ -96,7 +95,6 @@ void sendToMQTT(int data) {
   serializeJson(message, messageBuffer);
 
   mqtt.publish(PUB_TOPIC, messageBuffer);
-
   Serial.println("ESP32 - sent to MQTT:");
   Serial.print("- topic: ");
   Serial.println(PUB_TOPIC);
